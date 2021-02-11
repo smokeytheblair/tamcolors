@@ -2,10 +2,11 @@
 import string
 from abc import ABC
 from threading import Lock
+from itertools import cycle
 
 
 # tamcolors libraries
-from .tam_buffer import TAMBuffer
+from .tam_surface import TAMSurface
 from tamcolors.tam_c import _win_tam as io
 from tamcolors.tam_io import tam_drivers
 from tamcolors.tam_io import tam_colors
@@ -31,7 +32,10 @@ class WinSharedData(tam_drivers.TAMDriver, ABC):
 
 class WINKeyDriver(tam_drivers.KeyDriver, WinSharedData, ABC):
     def __init__(self, *args, **kwargs):
-        self._windows_keys = self.get_key_dict()
+        self._windows_keyboard = tam_keys.KEYBOARDS[self.get_keyboard_name()](*tam_keys.Keyboard.split_code_dict(self.get_key_dict()))
+        self._keys = cycle(self._windows_keyboard.get_key_list())
+        self._key_count = len(self._windows_keyboard.get_key_list())
+
         super().__init__(*args, **kwargs)
 
     def get_key(self):
@@ -41,44 +45,288 @@ class WINKeyDriver(tam_drivers.KeyDriver, WinSharedData, ABC):
         """
         if not self.is_console_keys_enabled():
             return False
-
-        key_bytes = []
-        key_byte = io._get_key()
-        while key_byte != -1:
-            key_bytes.append(key_byte)
+        elif self.is_key_state_mode_enabled():
+            for _ in range(self._key_count):
+                key = next(self._keys)
+                key_code = key[2]
+                if key_code is not None:
+                    if io._get_key_state(key_code):
+                        return key[0]
+        else:
+            key_bytes = []
             key_byte = io._get_key()
+            while key_byte != -1:
+                key_bytes.append(key_byte)
+                key_byte = io._get_key()
 
-        if len(key_bytes) != 0:
-            return self._windows_keys.get(";".join([str(key_byte) for key_byte in key_bytes]), False)
+            if len(key_bytes) != 0:
+                return self._windows_keyboard.code_to_key(tuple(key_bytes))
         return False
 
-    @staticmethod
-    def get_key_dict():
+    def get_key_dict(self, language=None):
         """
-        info: makes a dict mapping key codes to key
+        info: Gets a dict of all the keys
+        :param language: str or None
         :return: dict
         """
-        normal_key = string.digits + string.ascii_letters + "`-=[]\\;',./~!@#$%^&*()_+{}|:\"<>?"
-        windows_keys = {str(ord(key)): (key, "NORMAL") for key in normal_key}
 
-        for f_key in range(1, 10):
-            windows_keys["0;{0}".format(58 + f_key)] = ("F{0}".format(f_key), "SPECIAL")
-            windows_keys["0;{0}".format(83 + f_key)] = ("F{0}_SHIFT".format(f_key), "SPECIAL")
+        if language is None:
+            language = self.get_keyboard_name()
 
-        code_224 = [[72, "UP"], [80, "DOWN"], [75, "LEFT"], [77, "RIGHT"], [83, "DELETE"],
-                    [134, "F12"], [136, "F12_SHIFT"]]
+        if language in (tam_keys.LANGUAGE_US_ENGLISH, tam_keys.LANGUAGE_CAN_ENGLISH, tam_keys.LANGUAGE_AUS_ENGLISH):
+            return {tam_keys.KEY_ESCAPE: ((27,), 27),
+                    tam_keys.KEY_F1: ((0, 59), 112),
+                    tam_keys.KEY_F1_SHIFT: ((0, 84), None),
+                    tam_keys.KEY_F2: ((0, 60), 113),
+                    tam_keys.KEY_F2_SHIFT: ((0, 85), None),
+                    tam_keys.KEY_F3: ((0, 61), 114),
+                    tam_keys.KEY_F3_SHIFT: ((0, 86), None),
+                    tam_keys.KEY_F4: ((0, 62), 115),
+                    tam_keys.KEY_F4_SHIFT: ((0, 87), None),
+                    tam_keys.KEY_F5: ((0, 63), 116),
+                    tam_keys.KEY_F5_SHIFT: ((0, 88), None),
+                    tam_keys.KEY_F6: ((0, 64), 117),
+                    tam_keys.KEY_F6_SHIFT: ((0, 89), None),
+                    tam_keys.KEY_F7: ((0, 65), 118),
+                    tam_keys.KEY_F7_SHIFT: ((0, 90), None),
+                    tam_keys.KEY_F8: ((0, 66), 119),
+                    tam_keys.KEY_F8_SHIFT: ((0, 91), None),
+                    tam_keys.KEY_F9: ((0, 67), 120),
+                    tam_keys.KEY_F9_SHIFT: ((0, 92), None),
+                    tam_keys.KEY_F12: ((224, 134), 123),
+                    tam_keys.KEY_F12_SHIFT: ((224, 136), None),
+                    tam_keys.KEY_BACKTICK: ((96,), 192),
+                    tam_keys.KEY_TILDE: ((126,), None),
+                    tam_keys.KEY_1: ((49,), 49),
+                    tam_keys.KEY_EXCLAMATION_MART: ((33,), None),
+                    tam_keys.KEY_2: ((50,), 50),
+                    tam_keys.KEY_AT_SIGN: ((64,), None),
+                    tam_keys.KEY_3: ((51,), 51),
+                    tam_keys.KEY_NUMBER_SIGN: ((35,), None),
+                    tam_keys.KEY_4: ((52,), 52),
+                    tam_keys.KEY_DOLLAR_SYMBOL: ((36,), None),
+                    tam_keys.KEY_5: ((53,), 53),
+                    tam_keys.KEY_PERCENT_SIGN: ((37,), None),
+                    tam_keys.KEY_6: ((54,), 54),
+                    tam_keys.KEY_CARET: ((94,), None),
+                    tam_keys.KEY_7: ((55,), 55),
+                    tam_keys.KEY_AMPERSAND: ((38,), None),
+                    tam_keys.KEY_8: ((56,), 56),
+                    tam_keys.KEY_ASTERISK: ((42,), None),
+                    tam_keys.KEY_9: ((57,), 57),
+                    tam_keys.KEY_LEFT_PARENTHESIS: ((40,), None),
+                    tam_keys.KEY_0: ((48,), 48),
+                    tam_keys.KEY_RIGHT_PARENTHESIS: ((41,), None),
+                    tam_keys.KEY_HYPHEN: ((45,), 189),
+                    tam_keys.KEY_UNDERSCORE: ((95,), None),
+                    tam_keys.KEY_EQUAL_SIGN: ((61,), 187),
+                    tam_keys.KEY_PLUS_SIGN: ((43,), None),
+                    tam_keys.KEY_BACKSPACE: ((8,), 8),
+                    tam_keys.KEY_TAB: ((9,), 9),
+                    tam_keys.KEY_q: ((113,), 81),
+                    tam_keys.KEY_Q: ((81,), None),
+                    tam_keys.KEY_w: ((119,), 87),
+                    tam_keys.KEY_W: ((87,), None),
+                    tam_keys.KEY_e: ((101,), 69),
+                    tam_keys.KEY_E: ((69,), None),
+                    tam_keys.KEY_r: ((114,), 82),
+                    tam_keys.KEY_R: ((82,), None),
+                    tam_keys.KEY_t: ((116,), 84),
+                    tam_keys.KEY_T: ((84,), None),
+                    tam_keys.KEY_y: ((121,), 89),
+                    tam_keys.KEY_Y: ((89,), None),
+                    tam_keys.KEY_u: ((117,), 85),
+                    tam_keys.KEY_U: ((85,), None),
+                    tam_keys.KEY_i: ((105,), 73),
+                    tam_keys.KEY_I: ((73,), None),
+                    tam_keys.KEY_o: ((111,), 79),
+                    tam_keys.KEY_O: ((79,), None),
+                    tam_keys.KEY_p: ((112,), 80),
+                    tam_keys.KEY_P: ((80,), None),
+                    tam_keys.KEY_LEFT_SQUARE_BRACKET: ((91,), 219),
+                    tam_keys.KEY_LEFT_CURLY_BRACKET: ((123,), None),
+                    tam_keys.KEY_RIGHT_SQUARE_BRACKET: ((93,), 221),
+                    tam_keys.KEY_RIGHT_CURLY_BRACKET: ((125,), None),
+                    tam_keys.KEY_BACKSLASH: ((92,), 220),
+                    tam_keys.KEY_VERTICAL_BAR: ((124,), None),
+                    tam_keys.KEY_DELETE: ((224, 83), 46),
+                    tam_keys.KEY_a: ((97,), 65),
+                    tam_keys.KEY_A: ((65,), None),
+                    tam_keys.KEY_s: ((115,), 83),
+                    tam_keys.KEY_S: ((83,), None),
+                    tam_keys.KEY_d: ((100,), 68),
+                    tam_keys.KEY_D: ((68,), None),
+                    tam_keys.KEY_f: ((102,), 70),
+                    tam_keys.KEY_F: ((70,), None),
+                    tam_keys.KEY_g: ((103,), 71),
+                    tam_keys.KEY_G: ((71,), None),
+                    tam_keys.KEY_h: ((104,), 72),
+                    tam_keys.KEY_H: ((72,), None),
+                    tam_keys.KEY_j: ((106,), 74),
+                    tam_keys.KEY_J: ((74,), None),
+                    tam_keys.KEY_k: ((107,), 75),
+                    tam_keys.KEY_K: ((75,), None),
+                    tam_keys.KEY_l: ((108,), 76),
+                    tam_keys.KEY_L: ((76,), None),
+                    tam_keys.KEY_SEMICOLON: ((59,), 186),
+                    tam_keys.KEY_COLON: ((58,), None),
+                    tam_keys.KEY_APOSTROPHE: ((39,), 222),
+                    tam_keys.KEY_QUOTATION_MARK: ((34,), None),
+                    tam_keys.KEY_ENTER: ((13,), 13),
+                    tam_keys.KEY_z: ((122,), 90),
+                    tam_keys.KEY_Z: ((90,), None),
+                    tam_keys.KEY_x: ((120,), 88),
+                    tam_keys.KEY_X: ((88,), None),
+                    tam_keys.KEY_c: ((99,), 67),
+                    tam_keys.KEY_C: ((67,), None),
+                    tam_keys.KEY_v: ((118,), 86),
+                    tam_keys.KEY_V: ((86,), None),
+                    tam_keys.KEY_b: ((98,), 66),
+                    tam_keys.KEY_B: ((66,), None),
+                    tam_keys.KEY_n: ((110,), 78),
+                    tam_keys.KEY_N: ((78,), None),
+                    tam_keys.KEY_m: ((109,), 77),
+                    tam_keys.KEY_M: ((77,), None),
+                    tam_keys.KEY_COMMA: ((44,), 188),
+                    tam_keys.KEY_LEFT_ANGLE_BRACKET: ((60,), None),
+                    tam_keys.KEY_PERIOD: ((46,), 190),
+                    tam_keys.KEY_RIGHT_ANGLE_BRACKET: ((62,), None),
+                    tam_keys.KEY_SLASH: ((47,), 191),
+                    tam_keys.KEY_QUESTION_MARK: ((63,), None),
+                    tam_keys.KEY_UP: ((224, 72), 38),
+                    tam_keys.KEY_SPACE: ((32,), 32),
+                    tam_keys.KEY_LEFT: ((224, 75), 37),
+                    tam_keys.KEY_DOWN: ((224, 80), 40),
+                    tam_keys.KEY_RIGHT: ((224, 77), 39)}
 
-        for code, key in code_224:
-            windows_keys["224;{0}".format(code)] = (key, "SPECIAL")
-
-        windows_keys["9"] = ("\t", "WHITESPACE")
-        windows_keys["13"] = ("\n", "WHITESPACE")
-        windows_keys["32"] = (" ", "WHITESPACE")
-
-        windows_keys["8"] = ("BACKSPACE", "SPECIAL")
-        windows_keys["27"] = ("ESCAPE", "SPECIAL")
-
-        return windows_keys
+        elif language == tam_keys.LANGUAGE_UK_ENGLISH:
+            return {tam_keys.KEY_ESCAPE: ((27,), 27),
+                    tam_keys.KEY_F1: ((0, 59), 112),
+                    tam_keys.KEY_F1_SHIFT: ((0, 84), None),
+                    tam_keys.KEY_F2: ((0, 60), 113),
+                    tam_keys.KEY_F2_SHIFT: ((0, 85), None),
+                    tam_keys.KEY_F3: ((0, 61), 114),
+                    tam_keys.KEY_F3_SHIFT: ((0, 86), None),
+                    tam_keys.KEY_F4: ((0, 62), 115),
+                    tam_keys.KEY_F4_SHIFT: ((0, 87), None),
+                    tam_keys.KEY_F5: ((0, 63), 116),
+                    tam_keys.KEY_F5_SHIFT: ((0, 88), None),
+                    tam_keys.KEY_F6: ((0, 64), 117),
+                    tam_keys.KEY_F6_SHIFT: ((0, 89), None),
+                    tam_keys.KEY_F7: ((0, 65), 118),
+                    tam_keys.KEY_F7_SHIFT: ((0, 90), None),
+                    tam_keys.KEY_F8: ((0, 66), 119),
+                    tam_keys.KEY_F8_SHIFT: ((0, 91), None),
+                    tam_keys.KEY_F9: ((0, 67), 120),
+                    tam_keys.KEY_F9_SHIFT: ((0, 92), None),
+                    tam_keys.KEY_F12: ((224, 134), 123),
+                    tam_keys.KEY_F12_SHIFT: ((224, 136), None),
+                    tam_keys.KEY_BACKTICK: ((96,), 223),
+                    tam_keys.KEY_NOT_SIGN: ((170,), None),
+                    tam_keys.KEY_1: ((49,), 49),
+                    tam_keys.KEY_EXCLAMATION_MART: ((33,), None),
+                    tam_keys.KEY_2: ((50,), 50),
+                    tam_keys.KEY_QUOTATION_MARK: ((34,), None),
+                    tam_keys.KEY_3: ((51,), 51),
+                    tam_keys.KEY_POUND_SIGN: ((156,), None),
+                    tam_keys.KEY_4: ((52,), 52),
+                    tam_keys.KEY_DOLLAR_SYMBOL: ((36,), None),
+                    tam_keys.KEY_5: ((53,), 53),
+                    tam_keys.KEY_PERCENT_SIGN: ((37,), None),
+                    tam_keys.KEY_6: ((54,), 54),
+                    tam_keys.KEY_CARET: ((94,), None),
+                    tam_keys.KEY_7: ((55,), 55),
+                    tam_keys.KEY_AMPERSAND: ((38,), None),
+                    tam_keys.KEY_8: ((56,), 56),
+                    tam_keys.KEY_ASTERISK: ((42,), None),
+                    tam_keys.KEY_9: ((57,), 57),
+                    tam_keys.KEY_LEFT_PARENTHESIS: ((40,), None),
+                    tam_keys.KEY_0: ((48,), 48),
+                    tam_keys.KEY_RIGHT_PARENTHESIS: ((41,), None),
+                    tam_keys.KEY_HYPHEN: ((45,), 189),
+                    tam_keys.KEY_UNDERSCORE: ((95,), None),
+                    tam_keys.KEY_EQUAL_SIGN: ((61,), 187),
+                    tam_keys.KEY_PLUS_SIGN: ((43,), None),
+                    tam_keys.KEY_BACKSPACE: ((8,), 8),
+                    tam_keys.KEY_TAB: ((9,), 9),
+                    tam_keys.KEY_q: ((113,), 81),
+                    tam_keys.KEY_Q: ((81,), None),
+                    tam_keys.KEY_w: ((119,), 87),
+                    tam_keys.KEY_W: ((87,), None),
+                    tam_keys.KEY_e: ((101,), 69),
+                    tam_keys.KEY_E: ((69,), None),
+                    tam_keys.KEY_r: ((114,), 82),
+                    tam_keys.KEY_R: ((82,), None),
+                    tam_keys.KEY_t: ((116,), 84),
+                    tam_keys.KEY_T: ((84,), None),
+                    tam_keys.KEY_y: ((121,), 89),
+                    tam_keys.KEY_Y: ((89,), None),
+                    tam_keys.KEY_u: ((117,), 85),
+                    tam_keys.KEY_U: ((85,), None),
+                    tam_keys.KEY_i: ((105,), 73),
+                    tam_keys.KEY_I: ((73,), None),
+                    tam_keys.KEY_o: ((111,), 79),
+                    tam_keys.KEY_O: ((79,), None),
+                    tam_keys.KEY_p: ((112,), 80),
+                    tam_keys.KEY_P: ((80,), None),
+                    tam_keys.KEY_LEFT_SQUARE_BRACKET: ((91,), 219),
+                    tam_keys.KEY_LEFT_CURLY_BRACKET: ((123,), None),
+                    tam_keys.KEY_RIGHT_SQUARE_BRACKET: ((93,), 221),
+                    tam_keys.KEY_RIGHT_CURLY_BRACKET: ((125,), None),
+                    tam_keys.KEY_BACKSLASH: ((92,), 220),
+                    tam_keys.KEY_VERTICAL_BAR: ((124,), None),
+                    tam_keys.KEY_DELETE: ((224, 83), 46),
+                    tam_keys.KEY_a: ((97,), 65),
+                    tam_keys.KEY_A: ((65,), None),
+                    tam_keys.KEY_s: ((115,), 83),
+                    tam_keys.KEY_S: ((83,), None),
+                    tam_keys.KEY_d: ((100,), 68),
+                    tam_keys.KEY_D: ((68,), None),
+                    tam_keys.KEY_f: ((102,), 70),
+                    tam_keys.KEY_F: ((70,), None),
+                    tam_keys.KEY_g: ((103,), 71),
+                    tam_keys.KEY_G: ((71,), None),
+                    tam_keys.KEY_h: ((104,), 72),
+                    tam_keys.KEY_H: ((72,), None),
+                    tam_keys.KEY_j: ((106,), 74),
+                    tam_keys.KEY_J: ((74,), None),
+                    tam_keys.KEY_k: ((107,), 75),
+                    tam_keys.KEY_K: ((75,), None),
+                    tam_keys.KEY_l: ((108,), 76),
+                    tam_keys.KEY_L: ((76,), None),
+                    tam_keys.KEY_SEMICOLON: ((59,), 186),
+                    tam_keys.KEY_COLON: ((58,), None),
+                    tam_keys.KEY_APOSTROPHE: ((39,), 222),
+                    tam_keys.KEY_AT_SIGN: ((64,), None),
+                    tam_keys.KEY_NUMBER_SIGN: ((35,), 222),
+                    tam_keys.KEY_TILDE: ((126,), None),
+                    tam_keys.KEY_ENTER: ((13,), 13),
+                    tam_keys.KEY_z: ((122,), 90),
+                    tam_keys.KEY_Z: ((90,), None),
+                    tam_keys.KEY_x: ((120,), 88),
+                    tam_keys.KEY_X: ((88,), None),
+                    tam_keys.KEY_c: ((99,), 67),
+                    tam_keys.KEY_C: ((67,), None),
+                    tam_keys.KEY_v: ((118,), 86),
+                    tam_keys.KEY_V: ((86,), None),
+                    tam_keys.KEY_b: ((98,), 66),
+                    tam_keys.KEY_B: ((66,), None),
+                    tam_keys.KEY_n: ((110,), 78),
+                    tam_keys.KEY_N: ((78,), None),
+                    tam_keys.KEY_m: ((109,), 77),
+                    tam_keys.KEY_M: ((77,), None),
+                    tam_keys.KEY_COMMA: ((44,), 188),
+                    tam_keys.KEY_LEFT_ANGLE_BRACKET: ((60,), None),
+                    tam_keys.KEY_PERIOD: ((46,), 190),
+                    tam_keys.KEY_RIGHT_ANGLE_BRACKET: ((62,), None),
+                    tam_keys.KEY_SLASH: ((47,), 191),
+                    tam_keys.KEY_QUESTION_MARK: ((63,), None),
+                    tam_keys.KEY_UP: ((224, 72), 38),
+                    tam_keys.KEY_SPACE: ((32,), 32),
+                    tam_keys.KEY_LEFT: ((224, 75), 37),
+                    tam_keys.KEY_DOWN: ((224, 80), 40),
+                    tam_keys.KEY_RIGHT: ((224, 77), 39)}
+        return {}
 
     def get_keyboard_name(self, default_to_us_english=True):
         """
@@ -87,15 +335,15 @@ class WINKeyDriver(tam_drivers.KeyDriver, WinSharedData, ABC):
         :return: str
         """
         name = io._get_keyboard_name()
-        if default_to_us_english and name == tam_keys.UNKNOWN:
-            return tam_keys.US_ENGLISH
+        if default_to_us_english and name == tam_keys.LANGUAGE_UNKNOWN:
+            return tam_keys.LANGUAGE_US_ENGLISH
         return name
 
 
 class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
     def __init__(self, *args, **kwargs):
-        self.__buffer = TAMBuffer(0, 0, " ", tam_colors.BLACK, tam_colors.BLACK)
-        self._last_frame = TAMBuffer(0, 0, " ", tam_colors.BLACK, tam_colors.BLACK)
+        self._surface = TAMSurface(0, 0, " ", tam_colors.BLACK, tam_colors.BLACK)
+        self._last_frame = TAMSurface(0, 0, " ", tam_colors.BLACK, tam_colors.BLACK)
         self._last_frame_lock = Lock()
         self._spot_swap_dict = {1: 4,
                                 3: 6,
@@ -116,8 +364,8 @@ class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
         info: operations for IO to stop
         :return: None
         """
-        self.__buffer = TAMBuffer(0, 0, " ", tam_colors.BLACK, tam_colors.BLACK)
-        self._last_frame = TAMBuffer(0, 0, " ", tam_colors.BLACK, tam_colors.BLACK)
+        self._surface = TAMSurface(0, 0, " ", tam_colors.BLACK, tam_colors.BLACK)
+        self._last_frame = TAMSurface(0, 0, " ", tam_colors.BLACK, tam_colors.BLACK)
         io._set_cursor_info(0, 0, io._get_default_color())
         super().done()
 
@@ -172,56 +420,56 @@ class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
             self._last_frame_lock.release()
         super().set_mode(mode)
 
-    def draw(self, tam_buffer):
+    def draw(self, tam_surface):
         """
-        info: will draw tam buffer to terminal
-        :param tam_buffer: TAMBuffer
+        info: will draw tam surface to terminal
+        :param tam_surface: TAMSurface
         :return:
         """
-        if self.__buffer.get_dimensions() != io._get_dimensions():
+        if self._surface.get_dimensions() != io._get_dimensions():
             self.clear()
-            self.__buffer.set_dimensions_and_clear(*io._get_dimensions())
+            self._surface.set_dimensions_and_clear(*io._get_dimensions())
             self._last_frame = None
 
-        super().draw(tam_buffer)
+        super().draw(tam_surface)
 
-    def _draw_2(self, tam_buffer):
+    def _draw_2(self, tam_surface):
         """
-        info: will draw tam buffer to terminal in mode 2
-        :param tam_buffer: TAMBuffer
+        info: will draw tam surface to terminal in mode 2
+        :param tam_surface: TAMSurface
         :return:
         """
-        foreground, background = tam_buffer.get_defaults()[1:]
+        foreground, background = tam_surface.get_defaults()[1:]
         foreground, background = foreground.mode_2, background.mode_2
 
-        # checks if buffer needs to be updated
-        if " " != self.__buffer.get_defaults()[0] or self.__buffer.get_defaults()[1:] != tam_buffer.get_defaults()[1:]:
-            # buffer defaults changed
-            self.__buffer.set_defaults_and_clear(" ", *tam_buffer.get_defaults()[1:])
+        # checks if surface needs to be updated
+        if " " != self._surface.get_defaults()[0] or self._surface.get_defaults()[1:] != tam_surface.get_defaults()[1:]:
+            # surface defaults changed
+            self._surface.set_defaults_and_clear(" ", *tam_surface.get_defaults()[1:])
 
-        # draw onto WinIO buffer
-        self._draw_onto(self.__buffer, tam_buffer)
+        # draw onto WinIO surface
+        self._draw_onto(self._surface, tam_surface)
 
-        # draw WinIO buffer to terminal
-        self._print(0, 0, "".join(self.__buffer.get_raw_buffers()[0]),
+        # draw WinIO surface to terminal
+        self._print(0, 0, "".join(self._surface.get_raw_surface()[0]),
                     *self._processes_special_color(foreground, background))
 
-    def _draw_16_pal_256(self, tam_buffer):
+    def _draw_16_pal_256(self, tam_surface):
         """
-        info: will draw tam buffer to terminal in mode 16_pal_256
-        :param tam_buffer: TAMBuffer
+        info: will draw tam surface to terminal in mode 16_pal_256
+        :param tam_surface: TAMSurface
         :return:
         """
-        # checks if buffer needs to be updated
-        if "." != self.__buffer.get_defaults()[0] or\
-                self.__buffer.get_defaults()[2].mode_16_pal_256 != tam_buffer.get_defaults()[2].mode_16_pal_256:
-            # buffer defaults changed
-            background = tam_buffer.get_defaults()[2]
-            self.__buffer.set_defaults_and_clear(".", background, background)
+        # checks if surface needs to be updated
+        if "." != self._surface.get_defaults()[0] or\
+                self._surface.get_defaults()[2].mode_16_pal_256 != tam_surface.get_defaults()[2].mode_16_pal_256:
+            # surface defaults changed
+            background = tam_surface.get_defaults()[2]
+            self._surface.set_defaults_and_clear(".", background, background)
             self._last_frame = None
 
-        # draw onto WinIO buffer
-        self._draw_onto(self.__buffer, tam_buffer)
+        # draw onto WinIO surface
+        self._draw_onto(self._surface, tam_surface)
 
         """
         A block is a string or spots that 
@@ -231,18 +479,18 @@ class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
             self._last_frame_lock.acquire()
 
             start = None
-            width = self.__buffer.get_dimensions()[0]
+            width = self._surface.get_dimensions()[0]
             length = 0
             this_foreground, this_background = None, None
-            char_buffer, foreground_buffer, background_buffer = self.__buffer.get_raw_buffers()
-            for spot, char, foreground, background in zip(range(len(self.__buffer)),
+            char_buffer, foreground_buffer, background_buffer = self._surface.get_raw_surface()
+            for spot, char, foreground, background in zip(range(len(self._surface)),
                                                           char_buffer,
                                                           foreground_buffer,
                                                           background_buffer):
                 foreground, background = self._processes_special_color(foreground.mode_16_pal_256, background.mode_16_pal_256)
                 # no block has benn made
                 if start is None:
-                    # last frame buffer is not None
+                    # last frame surface is not None
                     if self._last_frame is not None:
                         # spot has not change
                         last_char, last_foreground, last_background = self._last_frame.get_from_raw_spot(spot)
@@ -269,7 +517,7 @@ class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
                     this_foreground, this_background = foreground, background
                     start = spot
                     length = 1
-                    # last frame buffer is not None
+                    # last frame surface is not None
                     if self._last_frame is not None:
                         # spot has not change
                         last_char, last_foreground, last_background = self._last_frame.get_from_raw_spot(spot)
@@ -288,33 +536,33 @@ class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
             # update last frame
             if self._last_frame is None:
                 # last frame is not made
-                self._last_frame = self.__buffer.copy()
+                self._last_frame = self._surface.copy()
             else:
-                # draw tam_buffer onto last frame
-                self._draw_onto(self._last_frame, tam_buffer)
+                # draw tam_surface onto last frame
+                self._draw_onto(self._last_frame, tam_surface)
             # set color back to default
-            background = tam_buffer.get_defaults()[2]
+            background = tam_surface.get_defaults()[2]
             _, background = self._processes_special_color(background.mode_16_pal_256,
                                                           background.mode_16_pal_256)
             self._print(0, 0, "", background, background)
         finally:
             self._last_frame_lock.release()
 
-    def _draw_16(self, tam_buffer):
+    def _draw_16(self, tam_surface):
         """
-        info: will draw tam buffer to terminal in mode 16
-        :param tam_buffer: TAMBuffer
+        info: will draw tam surface to terminal in mode 16
+        :param tam_surface: TAMSurface
         :return:
         """
-        # checks if buffer needs to be updated
-        if "." != self.__buffer.get_defaults()[0] or self.__buffer.get_defaults()[2].mode_16 != tam_buffer.get_defaults()[2].mode_16:
-            # buffer defaults changed
-            background = tam_buffer.get_defaults()[2]
-            self.__buffer.set_defaults_and_clear(".", background, background)
+        # checks if surface needs to be updated
+        if "." != self._surface.get_defaults()[0] or self._surface.get_defaults()[2].mode_16 != tam_surface.get_defaults()[2].mode_16:
+            # surface defaults changed
+            background = tam_surface.get_defaults()[2]
+            self._surface.set_defaults_and_clear(".", background, background)
             self._last_frame = None
 
-        # draw onto WinIO buffer
-        self._draw_onto(self.__buffer, tam_buffer)
+        # draw onto WinIO surface
+        self._draw_onto(self._surface, tam_surface)
 
         """
         A block is a string or spots that 
@@ -324,18 +572,18 @@ class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
             self._last_frame_lock.acquire()
 
             start = None
-            width = self.__buffer.get_dimensions()[0]
+            width = self._surface.get_dimensions()[0]
             length = 0
             this_foreground, this_background = None, None
-            char_buffer, foreground_buffer, background_buffer = self.__buffer.get_raw_buffers()
-            for spot, char, foreground, background in zip(range(len(self.__buffer)),
+            char_buffer, foreground_buffer, background_buffer = self._surface.get_raw_surface()
+            for spot, char, foreground, background in zip(range(len(self._surface)),
                                                           char_buffer,
                                                           foreground_buffer,
                                                           background_buffer):
                 foreground, background = self._processes_special_color(foreground.mode_16, background.mode_16)
                 # no block has benn made
                 if start is None:
-                    # last frame buffer is not None
+                    # last frame surface is not None
                     if self._last_frame is not None:
                         # spot has not change
                         last_char, last_foreground, last_background = self._last_frame.get_from_raw_spot(spot)
@@ -362,7 +610,7 @@ class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
                     this_foreground, this_background = foreground, background
                     start = spot
                     length = 1
-                    # last frame buffer is not None
+                    # last frame surface is not None
                     if self._last_frame is not None:
                         # spot has not change
                         last_char, last_foreground, last_background = self._last_frame.get_from_raw_spot(spot)
@@ -381,13 +629,13 @@ class WINFullColorDriver(tam_drivers.FullColorDriver, WinSharedData, ABC):
             # update last frame
             if self._last_frame is None:
                 # last frame is not made
-                self._last_frame = self.__buffer.copy()
+                self._last_frame = self._surface.copy()
             else:
-                # draw tam_buffer onto last frame
-                self._draw_onto(self._last_frame, tam_buffer)
+                # draw tam_surface onto last frame
+                self._draw_onto(self._last_frame, tam_surface)
 
             # set color back to default
-            background = tam_buffer.get_defaults()[2]
+            background = tam_surface.get_defaults()[2]
             _, background = self._processes_special_color(background.mode_16,
                                                           background.mode_16)
             self._print(0, 0, "", background, background)

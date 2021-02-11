@@ -22,26 +22,30 @@ class TAMLoopTests(unittest.TestCase):
         with unittest.mock.patch.object(threading.Thread, "start", return_value=None) as start:
             with unittest.mock.patch.object(threading.Thread, "join", return_value=None) as join:
                 with unittest.mock.patch.object(frame, "done", return_value=None) as done:
-                    loop.run()
+                    with unittest.mock.patch.object(frame, "frame_done", return_value=None) as frame_done:
+                        loop.run()
 
-                    self.assertEqual(start.call_count, 1)
-                    self.assertEqual(start.mock_calls[0], unittest.mock.call())
+                        self.assertEqual(start.call_count, 1)
+                        self.assertEqual(start.mock_calls[0], unittest.mock.call())
 
-                    self.assertEqual(join.call_count, 1)
-                    self.assertEqual(join.mock_calls[0], unittest.mock.call())
+                        self.assertEqual(join.call_count, 1)
+                        self.assertEqual(join.mock_calls[0], unittest.mock.call(timeout=5))
 
-                    done.assert_called_once_with(loop, {})
+                        done.assert_called_once_with(loop, {}, {}, {})
+                        self.assertEquals(frame_done.call_count, 0)
 
     def test_stack(self):
         frame = self._get_dummy_frame(5, "A", YELLOW, BLUE, 25, 35, 26, 36)
         loop = tam.tam_loop.TAMLoop(frame, only_any_os=True)
         frame2 = self._get_dummy_frame(5, "B", YELLOW, BLUE, 25, 35, 26, 36)
 
-        with unittest.mock.patch.object(frame2, "done", return_value=True) as done:
-            loop.add_frame_stack(frame2)
-            loop.pop_frame_stack()
+        with unittest.mock.patch.object(frame2, "frame_done", return_value=True) as frame_done:
+            with unittest.mock.patch.object(frame2, "done", return_value=True) as done:
+                loop.add_frame_stack(frame2)
+                loop.pop_frame_stack()
 
-            done.assert_called_once_with(loop, {})
+                frame_done.assert_called_once_with(loop, {}, {}, {})
+                self.assertEquals(done.call_count, 0)
 
     @staticmethod
     def _get_dummy_frame(*args, **kwargs):
@@ -49,10 +53,10 @@ class TAMLoopTests(unittest.TestCase):
             def __init__(self):
                 super().__init__(*args, **kwargs)
 
-            def update(self, tam_loop, keys, loop_data):
+            def update(self, tam_loop, keys, loop_data, *_):
                 tam_loop.done()
 
-            def draw(self, tam_buffer, loop_data):
+            def draw(self, tam_surface, loop_data, *_):
                 pass
 
         return Dummy()
@@ -91,39 +95,6 @@ class TAMLoopTests(unittest.TestCase):
             loop()
             self.assertEqual(io.get_mode(), io_tam.MODE_16)
 
-    def test_step(self):
-        class Dummy(tam.tam_loop.TAMFrame):
-            def __init__(self):
-                super().__init__(5, "A", YELLOW, BLUE, 25, 35, 26, 36)
-                self._q = False
-
-            def update(self, tam_loop, keys, loop_data):
-                self._q = bool(len(keys))
-
-            def draw(self, tam_buffer, loop_data):
-                tam_buffer.clear()
-                if self._q:
-                    tam_buffer.set_spot(0, 0, "C", RED, GREEN)
-
-            def done(self, tam_loop, loop_data):
-                pass
-
-        frame = Dummy()
-        with unittest.mock.patch.object(frame, "done", return_value=None) as done:
-            loop = tam.tam_loop.TAMLoop(frame, test_mode=True)
-            self.assertIsNone(loop.step())
-            loop()
-            self.assertIsInstance(loop.step(), tam_io.tam_buffer.TAMBuffer)
-            buffer = loop.step(("A", "NORMAL"))
-            self.assertIsInstance(buffer, tam_io.tam_buffer.TAMBuffer)
-            self.assertEqual(buffer.get_spot(0, 0), ("C", RED, GREEN))
-            buffer = loop.step()
-            self.assertIsInstance(buffer, tam_io.tam_buffer.TAMBuffer)
-            self.assertEqual(buffer.get_spot(0, 0), ("A", YELLOW, BLUE))
-            loop.done()
-            done.assert_called_once()
-            self.assertIsNone(loop.step())
-
 
 class TAMFrameTests(unittest.TestCase):
     def test_frame_init(self):
@@ -161,23 +132,23 @@ class TAMFrameTests(unittest.TestCase):
         frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
         self.assertEqual(frame.get_height_min_and_max(), (47, 58))
 
-    def test_make_buffer_ready(self):
+    def test_make_surface_ready(self):
         frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
-        buffer = tam_io.tam_buffer.TAMBuffer(30, 32, "C", RED, GREEN)
-        frame.make_buffer_ready(buffer, 46, 59)
-        self.assertEqual(buffer.get_dimensions(), (45, 58))
+        surface = tam_io.tam_surface.TAMSurface(30, 32, "C", RED, GREEN)
+        frame.make_surface_ready(surface, 46, 59)
+        self.assertEqual(surface.get_dimensions(), (45, 58))
 
-    def test_make_buffer_ready_2(self):
+    def test_make_surface_ready_2(self):
         frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
-        buffer = tam_io.tam_buffer.TAMBuffer(30, 32, "C", RED, GREEN)
-        frame.make_buffer_ready(buffer, 1, 2)
-        self.assertEqual(buffer.get_dimensions(), (15, 47))
+        surface = tam_io.tam_surface.TAMSurface(30, 32, "C", RED, GREEN)
+        frame.make_surface_ready(surface, 1, 2)
+        self.assertEqual(surface.get_dimensions(), (15, 47))
 
-    def test_make_buffer_ready_3(self):
+    def test_make_surface_ready_3(self):
         frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
-        buffer = tam_io.tam_buffer.TAMBuffer(30, 32, "C", RED, GREEN)
-        frame.make_buffer_ready(buffer, 33, 48)
-        self.assertEqual(buffer.get_dimensions(), (33, 48))
+        surface = tam_io.tam_surface.TAMSurface(30, 32, "C", RED, GREEN)
+        frame.make_surface_ready(surface, 33, 48)
+        self.assertEqual(surface.get_dimensions(), (33, 48))
 
     def test_update(self):
         frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
@@ -188,25 +159,40 @@ class TAMFrameTests(unittest.TestCase):
 
     def test_draw(self):
         frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
-        buffer = tam_io.tam_buffer.TAMBuffer(30, 32, "C", RED, GREEN)
+        surface = tam_io.tam_surface.TAMSurface(30, 32, "C", RED, GREEN)
         with unittest.mock.patch.object(frame, "draw", return_value=None) as draw:
-            frame.draw(buffer, {})
-            draw.assert_called_once_with(buffer, {})
+            frame.draw(surface, {})
+            draw.assert_called_once_with(surface, {})
 
     def test__done(self):
         frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
         loop = tam.tam_loop.TAMLoop(frame, only_any_os=True)
         with unittest.mock.patch.object(frame, "done", return_value=None) as done:
-            frame._done(loop, {})
-            done.assert_called_once_with(loop, {})
+            frame._done(loop, {}, {}, {})
+            done.assert_called_once_with(loop, {}, {}, {})
 
     def test__done_2(self):
         frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
         loop = tam.tam_loop.TAMLoop(frame, only_any_os=True)
         with unittest.mock.patch.object(frame, "done", return_value=None) as done:
-            frame._done(loop, {})
-            frame._done(loop, {})
-            done.assert_called_once_with(loop, {})
+            frame._done(loop, {}, {}, {})
+            frame._done(loop, {}, {}, {})
+            done.assert_called_once_with(loop, {}, {}, {})
+
+    def test__frame_done(self):
+        frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
+        loop = tam.tam_loop.TAMLoop(frame, only_any_os=True)
+        with unittest.mock.patch.object(frame, "frame_done", return_value=None) as frame_done:
+            frame._frame_done(loop, {}, {}, {})
+            frame_done.assert_called_once_with(loop, {}, {}, {})
+
+    def test__frame_done_2(self):
+        frame = self._get_dummy_frame(10, "C", PURPLE, GRAY, 15, 45, 47, 58)
+        loop = tam.tam_loop.TAMLoop(frame, only_any_os=True)
+        with unittest.mock.patch.object(frame, "frame_done", return_value=None) as frame_done:
+            frame._frame_done(loop, {}, {}, {})
+            frame._frame_done(loop, {}, {}, {})
+            frame_done.assert_called_once_with(loop, {}, {}, {})
 
     @staticmethod
     def _get_dummy_frame(*args, **kwargs):
@@ -214,10 +200,10 @@ class TAMFrameTests(unittest.TestCase):
             def __init__(self):
                 super().__init__(*args, **kwargs)
 
-            def update(self, tam_loop, keys, loop_data):
+            def update(self, tam_loop, keys, loop_data, *_):
                 pass
 
-            def draw(self, tam_buffer, loop_data):
+            def draw(self, tam_surface, loop_data, *_):
                 pass
 
         return Dummy()

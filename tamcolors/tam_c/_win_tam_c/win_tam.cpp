@@ -260,16 +260,16 @@ char* get_keyboard_name() {
 	HKL key_board_layout = GetKeyboardLayout(GetCurrentThreadId());
 
 	// ENGLISH
-	if (PRIMARYLANGID(key_board_layout) == SUBLANG_ENGLISH_US) {
+	if (SUBLANGID(key_board_layout) == SUBLANG_ENGLISH_US) {
 		return "US_ENGLISH";
 	}
-	else if (PRIMARYLANGID(key_board_layout) == SUBLANG_ENGLISH_UK) {
+	else if (SUBLANGID(key_board_layout) == SUBLANG_ENGLISH_UK) {
 		return "UK_ENGLISH";
 	}
-	else if (PRIMARYLANGID(key_board_layout) == SUBLANG_ENGLISH_AUS) {
+	else if (SUBLANGID(key_board_layout) == SUBLANG_ENGLISH_AUS) {
 		return "AUS_ENGLISH";
 	}
-	else if (PRIMARYLANGID(key_board_layout) == SUBLANG_ENGLISH_CAN) {
+	else if (SUBLANGID(key_board_layout) == SUBLANG_ENGLISH_CAN) {
 		return "CAN_ENGLISH";
 	}
 	else if (PRIMARYLANGID(key_board_layout) == LANG_ENGLISH) {
@@ -277,10 +277,10 @@ char* get_keyboard_name() {
 	}
 	
 	// SPANISH
-	if (PRIMARYLANGID(key_board_layout) == SUBLANG_SPANISH) {
+	if (SUBLANGID(key_board_layout) == SUBLANG_SPANISH) {
 		return "SPA_SPANISH";
 	}
-	else if (PRIMARYLANGID(key_board_layout) == SUBLANG_SPANISH_MEXICAN) {
+	else if (SUBLANGID(key_board_layout) == SUBLANG_SPANISH_MEXICAN) {
 		return "LAT_SPANISH";
 	}
 	else if (PRIMARYLANGID(key_board_layout) == LANG_SPANISH) {
@@ -299,4 +299,13 @@ char* get_keyboard_name() {
 
 	// UNKNOWN
 	return "UNKNOWN";
+}
+
+int get_key_state(int key_code) {
+	/*
+	info: will get key state
+	parameter: int: key_code
+	return: int
+	*/
+	return GetAsyncKeyState(key_code) & (1 << ((sizeof(short) * 8) - 1));
 }

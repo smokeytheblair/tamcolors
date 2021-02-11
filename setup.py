@@ -14,16 +14,20 @@ if platform.system() == "Windows":
                                  sources=[get_c_file_path("_win_tam_c", "_win_tam.cpp"),
                                           get_c_file_path("_win_tam_c", "win_tam.cpp")]))
 elif platform.system() in ("Darwin", "Linux"):
+    libraries = []
+    if platform.system() == "Linux":
+        libraries.append("X11")
     ext_modules.append(Extension("tamcolors.tam_c._uni_tam",
                                  sources=[get_c_file_path("_uni_tam_c", "_uni_tam.cpp"),
-                                          get_c_file_path("_uni_tam_c", "uni_tam.cpp")]))
+                                          get_c_file_path("_uni_tam_c", "uni_tam.cpp")],
+                                 libraries=libraries))
 
 with open(os.path.join("README.rst")) as readme:
     long_description = readme.read()
 
 setup(
     name="tamcolors",
-    version="1.3.0",
+    version="2.0.0",
     author="Charles McMarrow",
     author_email="Charles.M.McMarrow@gmail.com",
     url="https://github.com/cmcmarrow/tamcolors",

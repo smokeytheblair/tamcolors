@@ -45,19 +45,19 @@ class WinDriversTests(unittest.TestCase):
             with unittest.mock.patch.object(io, "clear", return_value=None) as clear:
                 with unittest.mock.patch.object(io, "_print", return_value=None) as _print:
                     io.set_mode(tam_io.io_tam.MODE_2)
-                    buffer = tam_io.tam_buffer.TAMBuffer(5, 6, "A", RED, GREEN)
-                    buffer2 = tam_io.tam_buffer.TAMBuffer(15, 10, " ", RED, GREEN)
+                    surface = tam_io.tam_surface.TAMSurface(5, 6, "A", RED, GREEN)
+                    surface2 = tam_io.tam_surface.TAMSurface(15, 10, " ", RED, GREEN)
 
-                    buffer.set_spot(1, 1, "B", PURPLE, WHITE)
-                    buffer.set_spot(4, 4, "C", PURPLE, WHITE)
-                    buffer.set_spot(4, 5, "D", PURPLE, WHITE)
+                    surface.set_spot(1, 1, "B", PURPLE, WHITE)
+                    surface.set_spot(4, 4, "C", PURPLE, WHITE)
+                    surface.set_spot(4, 5, "D", PURPLE, WHITE)
 
-                    buffer2.draw_onto(buffer, 5, 2)
-                    io.draw(buffer)
+                    surface2.draw_onto(surface, 5, 2)
+                    io.draw(surface)
 
                     _get_dimensions.assert_called()
                     clear.assert_called_once_with()
-                    _print.assert_called_once_with(0, 0, "".join(c for c in str(buffer2) if c != "\n"), 1, 2)
+                    _print.assert_called_once_with(0, 0, "".join(c for c in str(surface2) if c != "\n"), 1, 2)
 
     def test__draw_16(self):
         io = get_win_io()
@@ -65,16 +65,16 @@ class WinDriversTests(unittest.TestCase):
             with unittest.mock.patch.object(io, "clear", return_value=None) as clear:
                 with unittest.mock.patch.object(io, "_print", return_value=None) as _print:
                     io.set_mode(tam_io.io_tam.MODE_16)
-                    buffer = tam_io.tam_buffer.TAMBuffer(5, 6, "A", RED, GREEN)
-                    buffer2 = tam_io.tam_buffer.TAMBuffer(15, 10, " ", RED, GREEN)
+                    surface = tam_io.tam_surface.TAMSurface(5, 6, "A", RED, GREEN)
+                    surface2 = tam_io.tam_surface.TAMSurface(15, 10, " ", RED, GREEN)
 
-                    buffer.set_spot(1, 1, "B", PURPLE, WHITE)
-                    buffer.set_spot(3, 5, "C", PURPLE, WHITE)
-                    buffer.set_spot(4, 5, "D", PURPLE, WHITE)
-                    buffer.set_spot(1, 2, " ", PURPLE, GREEN)
+                    surface.set_spot(1, 1, "B", PURPLE, WHITE)
+                    surface.set_spot(3, 5, "C", PURPLE, WHITE)
+                    surface.set_spot(4, 5, "D", PURPLE, WHITE)
+                    surface.set_spot(1, 2, " ", PURPLE, GREEN)
 
-                    buffer2.draw_onto(buffer, 5, 2)
-                    io.draw(buffer)
+                    surface2.draw_onto(surface, 5, 2)
+                    io.draw(surface)
 
                     _get_dimensions.assert_called()
                     clear.assert_called_once_with()
@@ -165,20 +165,20 @@ class WinDriversTests(unittest.TestCase):
     def test_get_keyboard_name_2(self):
         io = get_win_io()
         with unittest.mock.patch.object(tam_io.win_drivers.io, "_get_keyboard_name",
-                                        return_value=tam_io.tam_keys.UK_ENGLISH) as _get_keyboard_name:
-            self.assertEqual(io.get_keyboard_name(), tam_io.tam_keys.UK_ENGLISH)
+                                        return_value=tam_io.tam_keys.LANGUAGE_UK_ENGLISH) as _get_keyboard_name:
+            self.assertEqual(io.get_keyboard_name(), tam_io.tam_keys.LANGUAGE_UK_ENGLISH)
 
     def test_get_keyboard_name_3(self):
         io = get_win_io()
         with unittest.mock.patch.object(tam_io.win_drivers.io, "_get_keyboard_name",
-                                        return_value=tam_io.tam_keys.UNKNOWN) as _get_keyboard_name:
-            self.assertEqual(io.get_keyboard_name(), tam_io.tam_keys.US_ENGLISH)
+                                        return_value=tam_io.tam_keys.LANGUAGE_UNKNOWN) as _get_keyboard_name:
+            self.assertEqual(io.get_keyboard_name(True), tam_io.tam_keys.LANGUAGE_US_ENGLISH)
             
     def test_get_keyboard_name_4(self):
         io = get_win_io()
         with unittest.mock.patch.object(tam_io.win_drivers.io, "_get_keyboard_name",
-                                        return_value=tam_io.tam_keys.UNKNOWN) as _get_keyboard_name:
-            self.assertEqual(io.get_keyboard_name(False), tam_io.tam_keys.UNKNOWN)
+                                        return_value=tam_io.tam_keys.LANGUAGE_UNKNOWN) as _get_keyboard_name:
+            self.assertEqual(io.get_keyboard_name(False), tam_io.tam_keys.LANGUAGE_UNKNOWN)
 
     def test_get_dimensions(self):
         io = get_win_io()
@@ -191,7 +191,7 @@ class WinDriversTests(unittest.TestCase):
         io = get_win_io()
         keys = io.get_key_dict()
         for key in keys:
-            self.assertIsInstance(key, str)
+            self.assertIsInstance(key, tuple)
             self.assertIsInstance(keys.get(key), tuple)
 
     @staticmethod

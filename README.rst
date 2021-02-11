@@ -3,6 +3,7 @@ tamcolors
 #########
 
 |Icon|
+
 |TotalDownloads| |WeekDownloads| |Python3| |License| |Docs| |Tests|
 
 *****
@@ -22,6 +23,8 @@ links
 * `pypi`_
 * `read the docs`_
 * `youtube`_
+* `patreon`_
+* `facebook`_
 
 ********************
 table tennis example
@@ -62,48 +65,41 @@ icon example
 
 .. code-block:: python
 
-   from tamcolors import tam, tam_tools, tam_io
+    from tamcolors import tam, tam_tools, tam_io
 
 
-   class BootLogo(tam.tam_loop.TAMFrame):
-       def __init__(self):
-           super().__init__(fps=10,
-                            char=" ",
-                            foreground_color=tam_io.tam_colors.GREEN,
-                            background_color=tam_io.tam_colors.BLACK,
-                            min_width=70, max_width=70, min_height=40, max_height=40)
+    class BootLogo(tam.tam_loop.TAMFrame):
+        def __init__(self):
+            super().__init__(fps=10,
+                             char=" ",
+                             foreground_color=tam_io.tam_colors.GREEN,
+                             background_color=tam_io.tam_colors.BLACK,
+                             min_width=57, max_width=57, min_height=20, max_height=20)
 
-           self.icon = tam_tools.tam_fade.tam_fade_in(buffer=tam_tools.tam_icon.get_icon(),
-                                                      char=" ",
-                                                      foreground_color=tam_io.tam_colors.BLACK,
-                                                      background_color=tam_io.tam_colors.BLACK)
-           self.wait = 10
+            self.icon = tam_tools.tam_fade.tam_fade_in(surface=tam_tools.tam_icon.get_icon(),
+                                                       char=" ",
+                                                       foreground_color=tam_io.tam_colors.BLACK,
+                                                       background_color=tam_io.tam_colors.BLACK)
+            self.wait = 10
 
-       def update(self, tam_loop, keys, loop_data):
+        def update(self, tam_loop, keys, loop_data, *args):
 
-           if not self.icon.done():
-               self.icon.slide()
-           else:
-               self.wait -= 1
+            if not self.icon.done():
+                self.icon.slide()
+            else:
+                self.wait -= 1
 
-           if self.wait == 0:
-               tam_loop.done()
+            if self.wait == 0:
+                tam_loop.done()
 
-       def draw(self, tam_buffer, loop_data):
-           tam_buffer.clear()
+        def draw(self, tam_surface, loop_data, *args):
+            tam_surface.clear()
 
-           tam_buffer.draw_onto(self.icon.peak(),
-                                *tam_tools.tam_placing.center(x=35, y=15, buffer=self.icon.peak()))
+            tam_surface.draw_onto(self.icon.peak(), 0, 0)
 
-           tam_tools.tam_print.tam_print(tam_buffer, *tam_tools.tam_placing.center(x=35,
-                                                                                   y=28,
-                                                                                   width=len("tamcolors"),
-                                                                                   height=1),
-                                         text="tamcolors",
-                                         foreground_color=tam_io.tam_colors.LIGHT_WHITE,
-                                         background_color=tam_io.tam_colors.BLACK)
 
-   tam.tam_loop.TAMLoop(BootLogo()).run()
+    tam.tam_loop.TAMLoop(BootLogo()).run()
+
 
 **************************************
 versions of Python currently supported
@@ -120,36 +116,65 @@ platforms tested on
 * Ubuntu 20.04
 * macOS 10.15.5
 
+*****
+goals
+*****
+* add IO event bus
+* support "get_keyboard_name" on macOS - Objective-C -> C++ -> Python
+* support "key state mode" on macOS - Objective-C -> C++ -> Python
+* add SHIFT KEY and other keys
+
 ***************
 long term goals
 ***************
 * build a community that builds fun terminal games
-* text editor
 * make and change fonts at run time
 * add .wav support
-* support GER_GERMAN, FRE_FRENCH, SPA_SPANISH, LAT_SPANISH, ...  Keyboards
-* add normal keyboard mode
-
-*****
-goals
-*****
-* support Solaris
-* support FreeBSD
 
 ***********
-1.3.0 goals
+3.0.2 goals
 ***********
-* fix exit clear - Done
-* add more io driver tests
-* add support for Solaris
-* add support for FreeBSD
-* add multi console example
-* make tam_loop multi console friendly
-* support GER_GERMAN, FRE_FRENCH, SPA_SPANISH, LAT_SPANISH, ...  Keyboards
+* clean up code
+* add more tests
+* add wiki
+
+***********
+3.0.1 goals
+***********
+* make and change fonts at run time
+* add SHIFT KEY and other keys
+
+***********
+3.0.0 goals
+***********
+* update tamtools
+* add SPA, LAT, GER and FRE keyboard maps
 * supports Python 3.9
 * supports Python 3.8
 * supports Python 3.7
 * supports Python 3.6
+
+***********
+2.1.0 goals
+***********
+* update tamloop
+* update tamframe
+* add IO event bus
+* supports Python 3.9
+* supports Python 3.8
+* supports Python 3.7
+* supports Python 3.6
+
+***********
+2.0.0 goals
+***********
+* add .wav support
+* add .wav tests
+* supports Python 3.9
+* supports Python 3.8
+* supports Python 3.7
+* supports Python 3.6
+
 
 ***********************
 what defines a release?
@@ -162,6 +187,24 @@ what defines a release?
 ********
 versions
 ********
+
+*****
+1.3.0
+*****
+* 2/5/2021
+* fixed exit clear
+* added wait_key
+* added frame_done
+* added multi console example
+* added key state keyboard mode Only for Windows
+* made tam_loop multi console friendly
+* renamed items from buffer to surface
+* updated tamcolors icon
+* supports GER_GERMAN, FRE_FRENCH, SPA_SPANISH, LAT_SPANISH, ...  Keyboards - Only for Windows and Linux
+* supports Python 3.9
+* supports Python 3.8
+* supports Python 3.7
+* supports Python 3.6
 
 *****
 1.2.0
@@ -271,7 +314,7 @@ versions
 * added textBuffer
 * supports Python 3.6
 
-.. |Icon| image:: https://raw.githubusercontent.com/cmcmarrow/tamcolors/master/photos/icon.png
+.. |Icon| image:: https://raw.githubusercontent.com/cmcmarrow/tamcolors/master/photos/small_icon.png
 .. |TableTennis| image:: https://raw.githubusercontent.com/cmcmarrow/tamcolors/master/photos/table_tennis.png
 .. |BasicExample| image:: https://raw.githubusercontent.com/cmcmarrow/tamcolors/master/photos/basic_example.png
 .. |TotalDownloads| image:: https://pepy.tech/badge/tamcolors
@@ -285,4 +328,5 @@ versions
 .. _pypi: https://pypi.org/project/tamcolors
 .. _read the docs: https://tamcolors.readthedocs.io/en/latest/
 .. _youtube: https://www.youtube.com/channel/UCgPjVibjJHFHuTZ0_xeq_HQ
-.. _paypal: https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=DUKDNFSAWDKFE&source=url
+.. _patreon: https://www.patreon.com/tamcolors
+.. _facebook: https://www.facebook.com/C4tamcolors

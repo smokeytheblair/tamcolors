@@ -3,8 +3,11 @@ import platform
 
 # tamcolors libraries
 from tamcolors.tam_io import any_drivers
+from tamcolors.tam_io import null_drivers
 from tamcolors.tam_io import win_drivers
 from tamcolors.tam_io import uni_drivers
+from tamcolors.tam_io import lin_drivers
+from tamcolors.tam_io import mac_drivers
 from tamcolors.tam_io import ansi_true_color_drivers
 from tamcolors.tam_io import ansi_256_drivers
 
@@ -99,7 +102,7 @@ class TAMIdentifier:
 
         if platform.system().lower() == "linux":
             io_identifier = cls("UNI_TRUE_COLOR_DRIVERS",
-                                uni_drivers.UNIKeyDriver,
+                                lin_drivers.LINKeyDriver,
                                 uni_drivers.UNIUtilitiesDriver,
                                 ansi_true_color_drivers.ANSITrueFullColorDriver)
             if io_identifier.stable():
@@ -107,7 +110,7 @@ class TAMIdentifier:
 
         if platform.system().lower() == "darwin":
             io_identifier = cls("UNI_256_DRIVERS",
-                                uni_drivers.UNIKeyDriver,
+                                mac_drivers.MACKeyDriver,
                                 uni_drivers.UNIUtilitiesDriver,
                                 ansi_256_drivers.ANSI256ColorDriver,
                                 ansi_256_drivers.ANSI256ChangerDriver)
@@ -134,11 +137,16 @@ class TAMIdentifier:
         return self._environment_io
 
 
+NULL_IO_IDENTIFIER = TAMIdentifier("NULL_DRIVERS",
+                                   null_drivers.NULLKeyDriver,
+                                   null_drivers.NULLFullColorDriver,
+                                   null_drivers.NULLUtilitiesDriver)
+
 ANY_IO_IDENTIFIER = TAMIdentifier("ANY_DRIVERS",
                                   any_drivers.ANYKeyDriver,
-                                  any_drivers.ANYColorDriver,
-                                  any_drivers.ANYColorChangerDriver,
+                                  any_drivers.ANYFullColorDriver,
                                   any_drivers.ANYUtilitiesDriver)
 
+NULL = NULL_IO_IDENTIFIER.get_io()
 ANY_IO = ANY_IO_IDENTIFIER.get_io()
 IO = TAMIdentifier.identify().get_io()

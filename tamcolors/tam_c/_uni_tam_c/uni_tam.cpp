@@ -4,6 +4,13 @@
 #include <stdio.h>
 #include <sys/ioctl.h>
 #include <unistd.h>
+#include <stdbool.h>
+
+// non apple libraries
+#ifdef __unix__
+#include <X11/Xlib.h>
+#include <X11/keysym.h>
+#endif
 
 
 /*
@@ -58,7 +65,7 @@ void disable_get_key(){
     tcsetattr(0, TCSANOW, &term);
 }
 
- bool kbhit(){
+bool kbhit(){
     /*
 	return: bool
 	false: no charter in buffer
@@ -91,3 +98,23 @@ int get_key() {
     }
     return -1;
  }
+
+#ifdef __unix__
+bool get_key_state(int key){
+    char keys_return[32];
+    Display* display = XOpenDisplay(NULL);
+    if (display == NULL){
+        return false;
+    }
+    XQueryKeymap(display, keys_return);
+    KeyCode key_code = XKeysymToKeycode(display, key);
+    XCloseDisplay(display);
+    return !!(keys_return[key_code>>3] & (1<<(key_code&7)));
+ }
+#endif
+
+#ifdef __APPLE__
+bool get_key_state(int key){
+    return false;
+}
+#endif
