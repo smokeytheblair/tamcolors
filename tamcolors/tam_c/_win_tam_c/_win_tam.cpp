@@ -341,6 +341,33 @@ static PyObject* _get_key_state(PyObject* self, PyObject* args) {
 	}
 }
 
+static PyObject* _sound_tool(PyObject* self, PyObject* args) {
+	PyObject *py_command;
+	if (!PyArg_ParseTuple(args, "U", &py_command)) {
+		return NULL;
+	}
+	wchar_t* command = PyUnicode_AsWideCharString(py_command, NULL);
+	if (command == NULL){
+	    return NULL;
+	}
+	bool error;
+	wchar_t* command_ret = sound_tool(command, error);
+	PyMem_Free((void*)command);
+
+	PyObject* py_command_ret = PyUnicode_FromWideChar(command_ret, -1);
+	if (py_command_ret == NULL){
+	    return NULL;
+	}
+	Py_XINCREF(py_command_ret);
+	delete[] command_ret;
+
+	if (error){
+	    PyErr_SetObject(_WinTamError, py_command_ret);
+		return NULL;
+	}
+	return py_command_ret;
+}
+
 static PyMethodDef _win_tam_methods[] = {
 	{
 		"_has_vaild_win_console", _has_vaild_win_console, METH_VARARGS,
@@ -401,6 +428,10 @@ static PyMethodDef _win_tam_methods[] = {
 	{
 		"_get_key_state", _get_key_state, METH_VARARGS,
 		"_get_key_state"
+	},
+	{
+		"_sound_tool", _sound_tool, METH_VARARGS,
+		"_sound_tool"
 	},
 { NULL, NULL, 0, NULL }
 };

@@ -3,7 +3,6 @@ import traceback
 import time
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from concurrent.futures import TimeoutError as ThreadPoolExecutorTimeoutError
 
 
 # tamcolors libraries
@@ -12,7 +11,8 @@ from tamcolors.tests import all_tests
 from tamcolors.tam_io import tam_identifier
 from tamcolors.tam.tam_loop_io_handler import TAMLoopIOHandler
 from tamcolors.utils import timer
-from tamcolors.tam_io.tam_colors import BLACK
+from tamcolors.tam_io.tam_colors import GREEN, BLACK
+from tamcolors.tam_io import tam_keys
 from tamcolors.utils.identifier import get_identifier_bytes
 from tamcolors.utils import log
 
@@ -36,7 +36,7 @@ class TAMLoop(TAMLoopIOHandler):
                  tam_frame,
                  io=None,
                  only_any_os=False,
-                 color_change_key="ESCAPE",
+                 color_change_key=tam_keys.KEY_ESCAPE,
                  loop_data=None,
                  stability_check=False,
                  tam_color_defaults=True,
@@ -47,13 +47,18 @@ class TAMLoop(TAMLoopIOHandler):
                  start_data=None,
                  receivers=None,
                  other_handlers=None,
-                 thread_count=20):
+                 thread_count=20,
+                 enable_loop_log=False,
+                 loop_log_key=tam_keys.KEY_F1,
+                 loop_log_level=log.DEBUG,
+                 enable_loop_fps=True,
+                 loop_fps_key=tam_keys.KEY_F2):
         """
         info: makes a TAMLoop object
         :param tam_frame: TAMFrame: first frame in tam loop
         :param io: IO
         :param only_any_os: bool: will only use Any Drivers if True
-        :param color_change_key: char: key that will change color mode
+        :param color_change_key: tuple: key that will change color mode
         :param loop_data: dict: will hold context so all TAMFrames can see
         :param stability_check: bool: raises and error if a test did not pass
         :param tam_color_defaults: bool
@@ -65,6 +70,11 @@ class TAMLoop(TAMLoopIOHandler):
         :param receivers: tuple or None
         :param other_handlers: tuple or None
         :param thread_count: int: number of threads to handle other handlers, should have 2 per handler
+        :param enable_loop_log: bool: will enable tam loop log
+        :param loop_log_key: tuple: key that will switch to log
+        :param loop_log_level: int
+        :param enable_loop_fps: bool
+        :param loop_fps_key: tuple
         """
 
         self._receiver_settings = {"color_change_key": color_change_key,
@@ -105,6 +115,22 @@ class TAMLoop(TAMLoopIOHandler):
 
         self._workers = ThreadPoolExecutor(max_workers=thread_count)
 
+        self._enable_loop_log = enable_loop_log
+        self._loop_log_key = loop_log_key
+
+        if self._enable_loop_log:
+            log.enable_logging(loop_log_level)
+
+        self._log_on = False
+        self._log_at = 0
+        self._log_bottom = True
+
+        self._enable_loop_fps = enable_loop_fps
+        self._fps_on = False
+        self._fps_ticker = timer.TickRateTracker()
+        self._ups_ticker = timer.TickRateTracker()
+        self._fps_key = loop_fps_key
+
         super().__init__(io=io,
                          name=name,
                          identifier_id=identifier_id,
@@ -123,7 +149,7 @@ class TAMLoop(TAMLoopIOHandler):
         super().__call__()
         if self.is_running():
             for other_handlers in self._other_handlers:
-                self._workers.submit(self._thread_task, other_handlers.__call__)
+                self.thread_task(other_handlers.__call__)
             self._update_loop()
             if self._error is not None:
                 raise self._error
@@ -143,21 +169,22 @@ class TAMLoop(TAMLoopIOHandler):
         :return: None
         """
         if self.is_running():
-            for frame in self._frame_stack[::-1]:
-                frame._done(self,
-                            self._loop_data,
-                            self._other_handlers,
-                            {other_handler: self._other_handlers[other_handler].get_loop_data() for other_handler in self._other_handlers})
+            try:
+                for frame in self._frame_stack[::-1]:
+                    frame._done(self,
+                                self._loop_data,
+                                self._other_handlers,
+                                {other_handler: self._other_handlers[other_handler].get_loop_data() for other_handler in self._other_handlers})
 
-            for other_handler in self._other_handlers:
-                log.debug("removed handler: {}".format(other_handler))
-                self._workers.submit(self._thread_task, self._other_handlers[other_handler].done)
+                for other_handler in self._other_handlers:
+                    log.debug("removed handler: {}".format(other_handler))
+                    self.thread_task(self._other_handlers[other_handler].done)
 
-            for receiver_name in self._receivers:
-                self._workers.submit(self._thread_task, self._receivers[receiver_name].done)
-
-            super().done()
-            self._workers.shutdown(wait=False)
+                for receiver_name in self._receivers:
+                    self.thread_task(self._receivers[receiver_name].done)
+            finally:
+                super().done()
+                self._workers.shutdown(wait=False)
 
     def get_receiver_settings(self):
         """
@@ -231,40 +258,57 @@ class TAMLoop(TAMLoopIOHandler):
 
         other_keys = {}
         other_surfaces = {}
-        other_dimensions = {}
+        log_keys = []
+
         try:
             while self.is_running() and self._error is None and len(self._frame_stack) != 0:
+                if self._fps_on:
+                    self._ups_ticker.tick()
+                # get frame and fps
+                frame = self._frame_stack[-1]
+                frame_time = 1 / frame.get_fps()
+
                 # check if new handlers have come
                 for receiver_name in self._receivers:
                     new_handler = self._receivers[receiver_name].get_handler()
                     if new_handler is not None:
                         if new_handler.get_full_name() not in self._other_handlers:
-                            self._workers.submit(self._thread_task, new_handler.__call__)
+                            self.thread_task(new_handler.__call__)
                             log.debug("new handler accepted: {}".format(new_handler.get_full_name()))
                             self._other_handlers[new_handler.get_full_name()] = new_handler
                             other_keys[new_handler.get_full_name()] = []
                             other_surfaces[new_handler.get_full_name()] = TAMSurface(0, 0, " ", BLACK, BLACK)
-                            other_dimensions[new_handler.get_full_name()] = [85, 25]
                         else:
                             # new handler cant join it has the same name as another handler
                             log.warning("new handler can't join: {}".format(new_handler.get_full_name()))
-                            self._workers.submit(self._thread_task, new_handler.done)
+                            self.thread_task(new_handler.done)
 
-                self._remove_dead_handlers(other_keys, other_surfaces, other_dimensions)
+                self._remove_dead_handlers(other_keys, other_surfaces)
 
                 # get other handler keys and update dimensions
                 for other_handler in self._other_handlers:
                     other_keys[other_handler] = self._other_handlers[other_handler].pump_keys()
-                    self._workers.submit(self._thread_task,
-                                         self._update_handler_dimensions,
-                                         self._other_handlers[other_handler],
-                                         other_handler,
-                                         other_dimensions)
 
-                # get frame and fps and kys
-                frame = self._frame_stack[-1]
-                frame_time = 1 / frame.get_fps()
                 keys = self.pump_keys()
+
+                # update log
+                if self._enable_loop_log:
+                    if self._loop_log_key in keys:
+                        self._log_on = not self._log_on
+
+                    if self._log_on:
+                        keys = list(keys)
+                        while self._loop_log_key in keys:
+                            keys.remove(self._loop_log_key)
+                        keys = tuple(keys)
+                        log_keys = keys
+                        keys = []
+
+                # update fps
+                if self._enable_loop_fps and self._fps_key in keys:
+                    self._fps_on = not self._fps_on
+                    while self._fps_key in keys:
+                        keys.remove(self._fps_key)
 
                 # update
                 frame.update(self, keys,
@@ -275,19 +319,27 @@ class TAMLoop(TAMLoopIOHandler):
 
                 # check if still running and for errors
                 if self.is_running() and self._error is None:
-                    self._remove_dead_handlers(other_keys, other_surfaces, other_dimensions)
+                    self._remove_dead_handlers(other_keys, other_surfaces)
                     if frame_skip == 0:
-                        frame.make_surface_ready(surface, *self._io.get_dimensions())
+                        frame.make_surface_ready(surface, *self.get_dimensions())
                         for other_handler in self._other_handlers:
-                            frame.make_surface_ready(other_surfaces[other_handler], *other_dimensions[other_handler])
+                            frame.make_surface_ready(other_surfaces[other_handler], *self._other_handlers[other_handler].get_dimensions())
                         frame.draw(surface,
                                    self.get_loop_data(),
                                    other_surfaces,
                                    {other_handler: self._other_handlers[other_handler].get_loop_data() for other_handler in self._other_handlers})
-                        self._io.draw(surface)
+                        if self._fps_on:
+                            self._fps_ticker.tick()
+                            self._draw_fps(surface)
+                        if self._log_on:
+                            # draw log to screen
+                            self._io.draw(self._update_log(log_keys))
+                        else:
+                            # draw to scree
+                            self._io.draw(surface)
 
                         for other_handler in self._other_handlers:
-                            self._workers.submit(self._thread_task, self._other_handlers[other_handler].get_io().draw, other_surfaces[other_handler])
+                            self.thread_task(self._other_handlers[other_handler].get_io().draw, other_surfaces[other_handler])
 
                     _, run_time = clock.offset_sleep(max(frame_time - frame_skip, 0))
 
@@ -301,23 +353,18 @@ class TAMLoop(TAMLoopIOHandler):
         finally:
             self.done()
 
-    @staticmethod
-    def _update_handler_dimensions(handler, handler_full_name, other_dimensions):
-        other_dimensions[handler_full_name] = handler.get_io().get_dimensions()
-
-    def _remove_dead_handlers(self, other_keys, other_surfaces, other_dimensions):
+    def _remove_dead_handlers(self, other_keys, other_surfaces):
         """
         info: removes all dead handlers
         :param other_keys: dict
         :param other_surfaces: dict
-        :param other_dimensions: dict
         :return: None
         """
         # remove dead handlers
         dead_handlers = []
         for other_handler in self._other_handlers:
             if self._other_handlers[other_handler].is_running() is False:
-                self._workers.submit(self._thread_task, self._other_handlers[other_handler].done)
+                self.thread_task(self._other_handlers[other_handler].done)
                 dead_handlers.append(other_handler)
 
         for dead_handler in dead_handlers:
@@ -325,7 +372,9 @@ class TAMLoop(TAMLoopIOHandler):
             del self._other_handlers[dead_handler]
             del other_keys[dead_handler]
             del other_surfaces[dead_handler]
-            del other_dimensions[dead_handler]
+
+    def thread_task(self, func, *args, **kwargs):
+        self._workers.submit(self._thread_task, func, *args, **kwargs)
 
     @staticmethod
     def _thread_task(func, *args, **kwargs):
@@ -336,6 +385,64 @@ class TAMLoop(TAMLoopIOHandler):
                 log.warning("_thread_task {} error: {}".format(func.__name__, error))
             else:
                 log.warning("_thread_task error: {}".format(error))
+
+    def _update_log(self, keys):
+        """
+        info: will update the log and draw the log
+        :param keys: tuple
+        :return: TAMSurface
+        """
+        width, height = self.get_dimensions()
+        surface = TAMSurface(width, height, " ", GREEN, BLACK)
+
+        if log.LOG.last_msg_id() > self._log_at:
+            self._log_at = log.LOG.last_msg_id()
+
+        if self._log_bottom:
+            self._log_at = log.LOG.first_msg_id()
+
+        for key in keys:
+            if key == tam_keys.KEY_UP:
+                self._log_at += -1
+                self._log_bottom = False
+            elif key == tam_keys.KEY_DOWN:
+                self._log_at += 1
+            elif key == tam_keys.KEY_LEFT:
+                self._log_at = log.LOG.last_msg_id()
+                self._log_bottom = False
+            elif key == tam_keys.KEY_RIGHT:
+                self._log_at = log.LOG.first_msg_id()
+                self._log_bottom = True
+
+        if log.LOG.last_msg_id() > self._log_at:
+            self._log_at = log.LOG.last_msg_id()
+
+        if log.LOG.first_msg_id() < self._log_at:
+            self._log_at = log.LOG.first_msg_id()
+
+        self._log_bottom = log.LOG.first_msg_id() == self._log_at
+        for spot, line_number in enumerate(range(self._log_at, self._log_at + height)):
+            line = log.LOG.read(line_number)
+            at_x = 0
+            for c in line:
+                if c == "\t":
+                    at_x += 4
+                elif c != "\n":
+                    surface.set_spot(at_x, spot, c, GREEN, BLACK)
+                    at_x += 1
+
+        return surface
+
+    def _draw_fps(self, surface):
+        """
+        info: will draw fps and ups on to the top left
+        :param surface: TAMSurface
+        :return: surface
+        """
+        fps_str = "F:{}, U:{}".format(self._fps_ticker.tick_rate(), self._ups_ticker.tick_rate())
+        for spot, c in enumerate(fps_str):
+            surface.set_spot(spot, 0, c, GREEN, BLACK)
+        return surface
 
 
 class TAMFrame:
